@@ -3,6 +3,8 @@
 
 //@version=5
 indicator(title='Sonarlab - Order Blocks', shorttitle='Sonarlab - OB', overlay=true, max_boxes_count=20)
+lookbackBars = input.int(200, minval=1, title='Lookback Bars', group='Order Block',
+     tooltip='Only show order blocks created within the most recent number of bars')
 _v = input.string("1.0.2", title="Version", options=["1.0.2"], group="Version")
 sens = input.int(28, minval=1, title='Sensitivity', group='Order Block', tooltip='Lower the sensitivity to show more order blocks. A higher sensitivity will show less order blocks.')
 sens /= 100
@@ -59,32 +61,32 @@ if ta.crossover(pc, sens)
 // -------------------------------
 // Check if we should create a OB, Also check if we haven't created an OB in the last 5 candles.
 if ob_created and cross_index - cross_index[1] > 5
-    float last_green = 0
-    float highest = 0
+    float last_green = na
     // Loop through the most recent candles and find the first GREEN (Bullish) candle. We will place our OB here.
     for i = 4 to 15 by 1
         if close[i] > open[i]
             last_green := i
             break
-    // Draw our OB on that candle - then push the box into our box arrays.
-    drawShortBox := box.new(left=bar_index[last_green], top=high[last_green], bottom=low[last_green], right=bar_index[last_green], bgcolor=col_bearish_ob, border_color=col_bearish, extend=extend.right)
-    array.push(shortBoxes, drawShortBox)
+    if not na(last_green) and bar_index - bar_index[last_green] <= lookbackBars
+        // Draw our OB on that candle - then push the box into our box arrays.
+        drawShortBox := box.new(left=bar_index[last_green], top=high[last_green], bottom=low[last_green], right=bar_index[last_green], bgcolor=col_bearish_ob, border_color=col_bearish, extend=extend.right)
+        array.push(shortBoxes, drawShortBox)
 
 // -------------------------------
 // Bullish OB Creation
 // -------------------------------
 // Check if we should create a OB, Also check if we haven't created an OB in the last 5 candles.
 if ob_created_bull and cross_index - cross_index[1] > 5
-    float last_red = 0
-    float highest = 0
+    float last_red = na
     // Loop through the most recent candles and find the first RED (Bearish) candle. We will place our OB here.
     for i = 4 to 15 by 1
         if close[i] < open[i]
             last_red := i
             break
-    // Draw our OB on that candle - then push the box into our box arrays.
-    drawlongBox := box.new(left=bar_index[last_red], top=high[last_red], bottom=low[last_red], right=bar_index[last_red], bgcolor=col_bullish_ob, border_color=col_bullish, extend=extend.right)
-    array.push(longBoxes, drawlongBox)
+    if not na(last_red) and bar_index - bar_index[last_red] <= lookbackBars
+        // Draw our OB on that candle - then push the box into our box arrays.
+        drawlongBox := box.new(left=bar_index[last_red], top=high[last_red], bottom=low[last_red], right=bar_index[last_red], bgcolor=col_bullish_ob, border_color=col_bullish, extend=extend.right)
+        array.push(longBoxes, drawlongBox)
 
 
 // ----------------- Bearish Order Block -------------------
@@ -94,6 +96,11 @@ if array.size(shortBoxes) > 0
         sbox = array.get(shortBoxes, i)
         top = box.get_top(sbox)
         bot = box.get_bottom(sbox)
+        left_idx = box.get_left(sbox)
+        if bar_index - left_idx > lookbackBars
+            array.remove(shortBoxes, i)
+            box.delete(sbox)
+            continue
         // If the two last closes are above the high of the bearish OB - Remove the OB
         if OBBearMitigation > top
             array.remove(shortBoxes, i)
@@ -109,6 +116,11 @@ if array.size(longBoxes) > 0
         sbox = array.get(longBoxes, i)
         bot = box.get_bottom(sbox)
         top = box.get_top(sbox)
+        left_idx = box.get_left(sbox)
+        if bar_index - left_idx > lookbackBars
+            array.remove(longBoxes, i)
+            box.delete(sbox)
+            continue
         // If the two last closes are below the low of the bullish OB - Remove the OB
         if OBBullMitigation < bot
             array.remove(longBoxes, i)
